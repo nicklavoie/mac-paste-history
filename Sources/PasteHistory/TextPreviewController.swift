@@ -63,8 +63,11 @@ final class TextPreviewController {
             return
         }
 
+        show(text: text, near: window.convertToScreen(sourceView.convert(sourceView.bounds, to: nil)), on: screen)
+    }
+
+    func show(text: String, near sourceFrame: NSRect, on screen: NSScreen) {
         let visibleFrame = screen.visibleFrame.insetBy(dx: 10, dy: 10)
-        let sourceFrame = window.convertToScreen(sourceView.convert(sourceView.bounds, to: nil))
         let previewWidth: CGFloat = min(420, max(320, visibleFrame.width * 0.34))
         let measuredHeight = measuredTextHeight(for: text, width: previewWidth)
         let previewHeight = min(max(64, measuredHeight), min(520, visibleFrame.height))

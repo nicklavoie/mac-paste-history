@@ -41,6 +41,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ClipboardMonitorDelega
         TextPreviewController.shared.hide()
     }
 
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+        guard let item,
+              let id = item.representedObject as? String,
+              let uuid = UUID(uuidString: id),
+              let historyItem = store.items.first(where: { $0.id == uuid }),
+              historyItem.kind == .text,
+              let text = historyItem.text,
+              !text.isEmpty else {
+            TextPreviewController.shared.hide()
+            return
+        }
+
+        TextPreviewController.shared.show(
+            text: text,
+            near: estimatedScreenFrame(for: item, in: menu),
+            on: menuScreen()
+        )
+    }
+
     private func configureStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
@@ -117,12 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ClipboardMonitorDelega
 
         switch item.kind {
         case .text:
-            let textView = TextHistoryMenuItemView(item: item, detail: detailText(for: item))
-            textView.onSelect = { [weak self, weak menu] in
-                self?.restore(item)
-                menu?.cancelTracking()
-            }
-            menuItem.view = textView
+            menuItem.attributedTitle = attributedTitle(for: item)
+            menuItem.image = NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: nil)
         case .image:
             menuItem.toolTip = tooltip(for: item)
             menuItem.attributedTitle = attributedTitle(for: item)
@@ -178,6 +193,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ClipboardMonitorDelega
         return image
     }
 
+    private func estimatedScreenFrame(for item: NSMenuItem, in menu: NSMenu) -> NSRect {
+        let menuFrame = menuWindowFrame() ?? fallbackMenuFrame()
+        guard let itemIndex = menu.items.firstIndex(of: item) else {
+            return NSRect(x: menuFrame.maxX, y: menuFrame.midY - 11, width: 1, height: 22)
+        }
+
+        let yOffset = menu.items.prefix(itemIndex).reduce(CGFloat(0)) { $0 + estimatedHeight(for: $1) }
+        let itemHeight = estimatedHeight(for: item)
+        return NSRect(
+            x: menuFrame.minX,
+            y: menuFrame.maxY - yOffset - itemHeight,
+            width: menuFrame.width,
+            height: itemHeight
+        )
+    }
+
+    private func estimatedHeight(for item: NSMenuItem) -> CGFloat {
+        if item.isSeparatorItem {
+            return 9
+        }
+        if let id = item.representedObject as? String,
+           UUID(uuidString: id) != nil {
+            return 36
+        }
+        return 22
+    }
+
+    private func menuWindowFrame() -> NSRect? {
+        NSApp.windows
+            .filter { $0.isVisible && $0.level.rawValue >= NSWindow.Level.popUpMenu.rawValue }
+            .sorted { $0.frame.width * $0.frame.height > $1.frame.width * $1.frame.height }
+            .first?
+            .frame
+    }
+
+    private func fallbackMenuFrame() -> NSRect {
+        let mouse = NSEvent.mouseLocation
+        return NSRect(x: mouse.x - 120, y: mouse.y - 180, width: 260, height: 360)
+    }
+
+    private func menuScreen() -> NSScreen {
+        let frame = menuWindowFrame() ?? fallbackMenuFrame()
+        return NSScreen.screens.first(where: { $0.frame.intersects(frame) }) ?? NSScreen.main ?? NSScreen.screens[0]
+    }
+
     @objc private func restoreHistoryItem(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String,
               let uuid = UUID(uuidString: id),
@@ -190,6 +250,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ClipboardMonitorDelega
     private func restore(_ item: ClipboardHistoryItem) {
         TextPreviewController.shared.hide()
         clipboardMonitor.restore(item)
+        PasteDispatcher.shared.pasteAfterMenuSelection()
+        if !PasteDispatcher.shared.hasAccessibilityPermission {
+            PasteDispatcher.shared.requestAccessibilityPermission()
+        }
     }
 
     @objc private func showSettings() {
