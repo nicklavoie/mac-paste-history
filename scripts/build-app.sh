@@ -10,6 +10,12 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
 cd "$ROOT_DIR"
+
+if [[ -d "/Applications/Xcode.app/Contents/Developer" && -z "${DEVELOPER_DIR:-}" ]]; then
+    export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+fi
+
+export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-$ROOT_DIR/.build/clang-module-cache}"
 swift build -c "$CONFIGURATION"
 
 rm -rf "$APP_DIR"

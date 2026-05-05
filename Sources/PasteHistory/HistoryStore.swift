@@ -37,6 +37,15 @@ final class HistoryStore {
         save()
     }
 
+    func remove(id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let item = items.remove(at: index)
+        if let url = imageURL(for: item) {
+            try? fileManager.removeItem(at: url)
+        }
+        save()
+    }
+
     func imageURL(for item: ClipboardHistoryItem) -> URL? {
         guard let imageFilename = item.imageFilename else { return nil }
         return imagesDirectory.appendingPathComponent(imageFilename)
